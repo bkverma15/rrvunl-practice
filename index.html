@@ -773,6 +773,7 @@
         if (t.id === 'gen') return generate();
         if (t.id === 'test-or') return testApi('or');
         if (t.id === 'test-gem') return testApi('gem');
+        if (t.id === 'load-gem-models') return loadGeminiModels();
         if (t.id === 'playai') { S.warn = ''; return start('ai'); }
         if (t.id === 'clearkey') {
           lsDel('rrvunl_or_key'); lsDel('rrvunl_gem_key');
@@ -818,6 +819,16 @@
         { val: 'both', label: 'Dono milkar (OpenRouter + Gemini)' },
         { val: 'gemini', label: 'Sirf Gemini API' },
         { val: 'openrouter', label: 'Sirf OpenRouter API' }
+      ];
+      var GEM_MODELS = [
+        { val: 'gemini-flash-latest', label: 'gemini-flash-latest (Auto Latest · Recommended)' },
+        { val: 'gemini-flash-lite-latest', label: 'gemini-flash-lite-latest (High Free Quota)' },
+        { val: 'gemini-2.5-flash', label: 'gemini-2.5-flash' },
+        { val: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' },
+        { val: 'gemini-3.1-flash-lite', label: 'gemini-3.1-flash-lite' },
+        { val: 'gemini-2.0-flash', label: 'gemini-2.0-flash' },
+        { val: 'gemini-2.0-flash-lite', label: 'gemini-2.0-flash-lite' },
+        { val: 'gemini-2.5-pro', label: 'gemini-2.5-pro' }
       ];
       var EXAMS = ['RRVUNL Technician-B', 'RRVUNL Junior Engineer (Electrical)', 'RRVUNL Plant Attendant', 'Rajasthan JEN / Vidyut Nigam exams', 'Koi bhi bijli vibhag exam'];
       var TOPICS = [
@@ -888,63 +899,94 @@
         if (orBox) orBox.classList.toggle('hide', m === 'gemini');
         if (gemBox) gemBox.classList.toggle('hide', m === 'openrouter');
       }
-      function openSetup() { S.sub = 'ai'; S.view = 'setup'; S.err = ''; S.warn = ''; drawChips(); renderSetup(); window.scrollTo(0, 0); }
+      function openSetup() { S.sub = 'ai'; S.view = 'setup'; S.err = ''; S.warn = ''; S.busy = false; drawChips(); renderSetup(); window.scrollTo(0, 0); }
 
       function renderSetup() {
         var mode = lsGet('rrvunl_ai_mode', 'both');
         var orKey = lsGet('rrvunl_or_key', '');
-        // Fix: purana galat model override kar do
         if (lsGet('rrvunl_or_model', '') === 'nvidia/nemotron-3.5-embed' || lsGet('rrvunl_or_model', '') === 'openai/gpt-4o-mini') lsSet('rrvunl_or_model', 'openrouter/free');
         if (lsGet('rrvunl_or_web', '') === '1') lsSet('rrvunl_or_web', '0');
         var orModel = lsGet('rrvunl_or_model', 'openrouter/free');
         var gemKey = lsGet('rrvunl_gem_key', '');
-        var gemModel = lsGet('rrvunl_gem_model', 'gemini-3.1-flash-lite');
-        var topic = lsGet('rrvunl_or_topic', 'Transformer');
+        var gemModel = lsGet('rrvunl_gem_model', 'gemini-flash-latest');
+        var gemOpts = GEM_MODELS.slice();
+        if (gemModel && !gemOpts.some(function (m) { return m.val === gemModel; })) {
+          gemOpts.unshift({ val: gemModel, label: gemModel });
+        }
+        var topic = lsGet('rrvunl_or_topic', TOPICS[0]);
         var exam = lsGet('rrvunl_or_exam', EXAMS[0]);
         var lvl = lsGet('rrvunl_or_lvl', 'Medium');
         var n = lsGet('rrvunl_or_n', '6');
         var lang = lsGet('rrvunl_or_lang', 'Hinglish');
         var web = lsGet('rrvunl_or_web', '0') === '1';
 
-        app.innerHTML =
-          '<div class="card"><div class="tag">AI RRVUNL Exam Prep</div>' +
-          '<div class="q" style="margin-bottom:6px">OpenRouter aur Gemini milkar sawal aur solution banayenge</div>' +
-          '<p class="hint" style="margin:0">Web search on rakhoge to dono APIs purane paper aur RRVUNL pattern search karke naye sawal, step-by-step Hinglish solution aur exam suggestion denge.</p>' +
-          '<div class="field"><label for="ai-mode">AI Mode chuno</label><select id="ai-mode">' + optionsHtml(MODES, mode) + '</select></div>' +
+        app.innerHTML = [
+          '<div style="display:flex;flex-direction:column;gap:14px">',
 
-          '<div class="api-box" id="box-or"><div class="tag">OpenRouter API</div>' +
-          '<div class="field"><label for="or-key">OpenRouter API key</label>' +
-          '<input id="or-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-..." value="' + esc(orKey) + '">' +
-          '<p class="hint">Key openrouter.ai/keys par milti hai (sirf is browser mein save hoti hai).</p></div>' +
-          '<div class="field"><label for="or-model">OpenRouter Model</label>' +
-          '<input id="or-model" type="text" autocomplete="off" spellcheck="false" value="' + esc(orModel) + '"></div>' +
-          '<button class="btn ghost" id="test-or" style="margin-top:10px;width:100%;font-size:.85rem">🔌 OpenRouter Key Test karo</button>' +
-          '<div id="test-or-res"></div></div>' +
+          /* ── Header ── */
+          '<div class="card" style="background:linear-gradient(135deg,#1F4FD8 0%,#0e2f8a 100%);border:none;color:#fff;padding:18px 20px">',
+            '<div style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;opacity:.75;font-weight:600;margin-bottom:4px">AI RRVUNL Exam Prep</div>',
+            '<div style="font-family:var(--font-display);font-size:1.15rem;font-weight:700;line-height:1.3">Gemini + OpenRouter milkar RRVUNL<br>ke sawal aur solution banayenge</div>',
+          '</div>',
 
-          '<div class="api-box" id="box-gem"><div class="tag">Google Gemini API</div>' +
-          '<div class="field"><label for="gem-key">Gemini API key</label>' +
-          '<input id="gem-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza..." value="' + esc(gemKey) + '">' +
-          '<p class="hint">Key aistudio.google.com par milti hai (sirf is browser mein save hoti hai).</p></div>' +
-          '<div class="field"><label for="gem-model">Gemini Model</label>' +
-          '<input id="gem-model" type="text" list="gem-models" autocomplete="off" spellcheck="false" value="' + esc(gemModel) + '">' +
-          '<datalist id="gem-models"><option value="gemini-3.1-flash-lite"><option value="gemini-flash-lite-latest"><option value="gemini-flash-latest"><option value="gemini-2.5-flash"></datalist></div>' +
-          '<button class="btn ghost" id="test-gem" style="margin-top:10px;width:100%;font-size:.85rem">🔌 Gemini Key Test karo</button>' +
-          '<div id="test-gem-res"></div></div>' +
+          /* ── AI Mode ── */
+          '<div class="card" style="padding:16px 18px">',
+            '<div class="tag" style="margin-bottom:8px">⚙️ AI Mode</div>',
+            '<select id="ai-mode" style="font:inherit;width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);min-height:44px">' + optionsHtml(MODES, mode) + '</select>',
+          '</div>',
 
-          '<div class="field"><label for="or-topic">Topic (RRVUNL Syllabus)</label>' +
-          '<select id="or-topic">' + optionsHtml(TOPICS, topic) + '</select></div>' +
-          '<div class="field"><label for="or-exam">Target Exam</label><select id="or-exam">' + optionsHtml(EXAMS, exam) + '</select></div>' +
-          '<div class="grid2">' +
-          '<div class="field"><label for="or-lvl">Level</label><select id="or-lvl">' + optionsHtml(['Easy', 'Medium', 'Hard'], lvl) + '</select></div>' +
-          '<div class="field"><label for="or-n">Total sawal</label><select id="or-n">' + optionsHtml(['6', '10', '16'], n) + '</select></div>' +
-          '<div class="field"><label for="or-lang">Bhasha / Language</label><select id="or-lang">' + optionsHtml(['Hinglish', 'Hindi', 'English'], lang) + '</select></div></div>' +
-          '<label class="check" for="or-web"><input id="or-web" type="checkbox"' + (web ? ' checked' : '') + '> Web search se RRVUNL sawal search karo</label>' +
-          (S.err ? '<div class="err" role="alert">' + esc(S.err) + '</div>' : '') +
-          '<button class="btn full" id="gen"' + (S.busy ? ' disabled' : '') + '>' + (S.busy ? 'Sawal search ho rahe hain... thoda ruko' : 'Sawal banao') + '</button>' +
-          '<div class="row">' +
-          (AIQ.length ? '<button class="btn ghost" id="playai">Pichle AI sawal (' + AIQ.length + ') khelo</button>' : '') +
-          ((orKey || gemKey) ? '<button class="btn ghost" id="clearkey">Keys hatao</button>' : '') + '</div>' +
-          '<p class="hint" style="margin-top:14px">AI galti kar sakta hai. Zaroori sawalon ka jawab standard book se ek baar check kar lo.</p></div>';
+          /* ── OpenRouter API Box ── */
+          '<div class="card" id="box-or" style="padding:16px 18px">',
+            '<div class="tag" style="margin-bottom:10px">🔗 OpenRouter API</div>',
+            '<div class="field" style="margin-top:0"><label for="or-key">API Key <span style="color:var(--muted);font-weight:400">(openrouter.ai/keys)</span></label>',
+            '<input id="or-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-..." value="' + esc(orKey) + '"></div>',
+            '<div class="field"><label for="or-model">Model</label>',
+            '<input id="or-model" type="text" autocomplete="off" spellcheck="false" placeholder="openrouter/free" value="' + esc(orModel) + '"></div>',
+            '<button class="btn ghost" id="test-or" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><span>🔌</span> Key Test karo</button>',
+            '<div id="test-or-res"></div>',
+          '</div>',
+
+          /* ── Gemini API Box ── */
+          '<div class="card" id="box-gem" style="padding:16px 18px">',
+            '<div class="tag" style="margin-bottom:10px">✨ Google Gemini API</div>',
+            '<div class="field" style="margin-top:0"><label for="gem-key">API Key <span style="color:var(--muted);font-weight:400">(aistudio.google.com)</span></label>',
+            '<input id="gem-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza... ya AQ...." value="' + esc(gemKey) + '"></div>',
+            '<div class="field"><label for="gem-model">Model</label>',
+            '<select id="gem-model">' + optionsHtml(gemOpts, gemModel) + '</select></div>',
+            '<div class="row" style="margin-top:12px">',
+              '<button class="btn ghost" id="test-gem">🔌 Key Test karo</button>',
+              '<button class="btn ghost" id="load-gem-models">🔄 Live Models Load karo</button>',
+            '</div>',
+            '<div id="test-gem-res"></div>',
+          '</div>',
+
+          /* ── Sawal Settings ── */
+          '<div class="card" style="padding:16px 18px">',
+            '<div class="tag" style="margin-bottom:10px">📚 Sawal Settings</div>',
+            '<div class="field" style="margin-top:0"><label for="or-topic">Topic — RRVUNL Electrical Syllabus</label>',
+            '<select id="or-topic">' + optionsHtml(TOPICS, topic) + '</select></div>',
+            '<div class="field"><label for="or-exam">Target Exam</label>',
+            '<select id="or-exam">' + optionsHtml(EXAMS, exam) + '</select></div>',
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px">',
+              '<div class="field"><label for="or-lvl">Level</label><select id="or-lvl">' + optionsHtml(['Easy', 'Medium', 'Hard'], lvl) + '</select></div>',
+              '<div class="field"><label for="or-n">Sawal</label><select id="or-n">' + optionsHtml(['5', '6', '10', '15'], n) + '</select></div>',
+              '<div class="field"><label for="or-lang">Bhasha</label><select id="or-lang">' + optionsHtml(['Hinglish', 'Hindi', 'English'], lang) + '</select></div>',
+            '</div>',
+            '<label class="check" for="or-web" style="margin-top:14px"><input id="or-web" type="checkbox"' + (web ? ' checked' : '') + '> <span>🌐 Web search ON (RRVUNL papers)</span></label>',
+          '</div>',
+
+          /* ── Error ── */
+          (S.err ? '<div class="err" role="alert">' + esc(S.err) + '</div>' : ''),
+
+          /* ── Action Buttons ── */
+          '<button class="btn full" id="gen" style="font-size:1rem;padding:15px;border-radius:10px"' + (S.busy ? ' disabled' : '') + '>' + (S.busy ? '⏳ Sawal search ho rahe hain... thoda ruko' : '🚀 Sawal Banao') + '</button>',
+          '<div class="row">',
+            (AIQ.length ? '<button class="btn ghost" id="playai">▶ Pichle AI sawal (' + AIQ.length + ')</button>' : ''),
+            ((orKey || gemKey) ? '<button class="btn ghost" id="clearkey">🗑 Keys hatao</button>' : ''),
+          '</div>',
+          '<p class="hint" style="text-align:center;margin:0">AI galti kar sakta hai — important jawab standard book se verify karo.</p>',
+          '</div>'
+        ].join('');
 
         toggleApiBoxes();
       }
@@ -990,15 +1032,47 @@
             body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Hi' }] }], generationConfig: { maxOutputTokens: 5 } })
           }).then(function (r) {
             return r.json().then(function (d) {
-              if (btn) { btn.disabled = false; btn.textContent = '🔌 Gemini Key Test karo'; }
+              if (btn) { btn.disabled = false; btn.textContent = '🔌 Key Test karo'; }
               if (r.ok) showTestRes(resEl, 'Key aur model sahi hain! Model: ' + model, true);
               else showTestRes(resEl, (d.error && d.error.message) || ('Error ' + r.status), false);
             });
           }).catch(function (e) {
-            if (btn) { btn.disabled = false; btn.textContent = '🔌 Gemini Key Test karo'; }
+            if (btn) { btn.disabled = false; btn.textContent = '🔌 Key Test karo'; }
             showTestRes(resEl, 'Connect nahi ho paya: ' + e.message, false);
           });
         }
+      }
+
+      function loadGeminiModels() {
+        var key = val('gem-key');
+        var resEl = 'test-gem-res';
+        var btn = document.getElementById('load-gem-models');
+        if (!key) return showTestRes(resEl, 'Pehle Gemini API key daalo.', false);
+        if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+        fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key))
+          .then(function (r) {
+            return r.json().then(function (d) {
+              if (btn) { btn.disabled = false; btn.textContent = '🔄 Live Models Load karo'; }
+              if (!r.ok) return showTestRes(resEl, (d.error && d.error.message) || ('Error ' + r.status), false);
+              var models = (d.models || []).filter(function (m) {
+                return m.supportedGenerationMethods && m.supportedGenerationMethods.indexOf('generateContent') >= 0;
+              }).map(function (m) {
+                var id = m.name.replace(/^models\//, '');
+                return { val: id, label: id + (m.displayName ? ' — ' + m.displayName : '') };
+              });
+              if (!models.length) return showTestRes(resEl, 'Koi chat model nahi mila.', false);
+              var sel = document.getElementById('gem-model');
+              if (sel) {
+                var cur = sel.value;
+                sel.innerHTML = optionsHtml(models, cur);
+                if (!models.some(function (m) { return m.val === cur; })) sel.value = models[0].val;
+              }
+              showTestRes(resEl, models.length + ' live models load ho gaye! Upar dropdown se chuno.', true);
+            });
+          }).catch(function (e) {
+            if (btn) { btn.disabled = false; btn.textContent = '🔄 Live Models Load karo'; }
+            showTestRes(resEl, 'Connect nahi ho paya: ' + e.message, false);
+          });
       }
 
       function friendlyError(provider, err) {
