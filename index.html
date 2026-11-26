@@ -707,7 +707,9 @@
           sol = '<div class="sol" id="sol" role="status">' +
             '<h2 class="' + (right ? 'verdict-ok' : 'verdict-bad') + '">' + (right ? 'Sahi jawab' : 'Galat jawab') + '</h2>' +
             '<p class="ans">Sahi option: (' + LETTERS[correctPos] + ') ' + esc(q.o[q.a]) + '</p>' +
-            '<p>' + esc(q.e) + '</p>' +
+            (q.c ? '<p style="margin-top:8px"><b>Concept:</b> ' + esc(q.c) + '</p>' : '') +
+            (q.f ? '<p style="margin-top:6px"><b>Formula:</b> <code>' + esc(q.f) + '</code></p>' : '') +
+            '<p style="margin-top:6px"><b>Solution:</b> ' + esc(q.e) + '</p>' +
             (q.x ? '<p class="exam"><b>Exam suggestion:</b> ' + esc(q.x) + '</p>' : '') + '</div>' +
             '<button class="btn full" id="next">' + (S.i + 1 < total ? 'Agla sawal' : 'Result dekho') + '</button>';
         }
@@ -736,7 +738,10 @@
             'Abhi aur practice chahiye. Solution padhkar dobara try karo.';
         var review = S.wrong.length
           ? '<ul class="review">' + S.wrong.map(function (q) {
-            return '<li><b>' + esc(q.q) + '</b><span>Sahi jawab: ' + esc(q.o[q.a]) + '. ' + esc(q.e) + (q.x ? ' Exam suggestion: ' + esc(q.x) : '') + '</span></li>';
+            return '<li><b>' + esc(q.q) + '</b><span>Sahi jawab: ' + esc(q.o[q.a]) + '. ' +
+              (q.c ? 'Concept: ' + esc(q.c) + ' ' : '') +
+              (q.f ? 'Formula: ' + esc(q.f) + '. ' : '') +
+              esc(q.e) + (q.x ? ' Exam suggestion: ' + esc(q.x) : '') + '</span></li>';
           }).join('') + '</ul>'
           : '';
         app.innerHTML =
@@ -1106,6 +1111,8 @@
           return {
             s: 'ai', src: srcLabel || 'AI',
             q: String(x.q), o: x.o.map(String), a: Number(x.a),
+            c: x.concept ? String(x.concept) : '',
+            f: x.formula ? String(x.formula) : '',
             e: String(x.e || 'Solution nahi mila.'), x: x.exam ? String(x.exam) : ''
           };
         });
@@ -1122,9 +1129,9 @@
           (angle ? angle + ' ' : '') +
           (f.web ? 'Web search se RRVUNL ke previous year papers, syllabus aur current exam pattern dekhkar real exam-style sawal banao. ' : '') +
           'Har sawal ke exactly 4 options ho aur sirf ek sahi ho. ' + langInst + ' ' +
-          'Har sawal ke "exam" field mein ek line mein batao ki aisa sawal kis exam ya post mein aa sakta hai aur kyun. ' +
+          'Har sawal ke "concept" field mein core concept/principle 1-2 line mein, "formula" field mein main formula/law (ya rule), aur "exam" field mein ek line mein batao ki aisa sawal kis exam ya post mein aa sakta hai aur kyun. ' +
           'Jawab dene se pehle har answer ek baar dobara verify karo. ' +
-          'Output sirf valid JSON ho is format mein: {"questions":[{"q":"...","o":["...","...","...","..."],"a":0,"e":"...","exam":"..."}]}. ' +
+          'Output sirf valid JSON ho is format mein: {"questions":[{"q":"...","o":["...","...","...","..."],"a":0,"concept":"...","formula":"...","e":"...","exam":"..."}]}. ' +
           '"a" sahi option ka index hai (0 se 3).';
       }
 
